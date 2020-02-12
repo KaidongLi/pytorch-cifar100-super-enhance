@@ -15,13 +15,152 @@ from torch.utils.data import DataLoader
 
 #from dataset import CIFAR100Train, CIFAR100Test
 
-def get_network(args, use_gpu=True):
+
+CIFAR100_LABELS_LIST = [
+'apples', 'aquarium fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle',
+'bicycle', 'bottles', 'bowls', 'boy', 'bridge', 'bus', 'butterfly', 'camel',
+'cans', 'castle', 'caterpillar', 'cattle', 'chair', 'chimpanzee', 'clock',
+'cloud', 'cockroach', 'couch', 'crab', 'crocodile', 'cups', 'dinosaur',
+'dolphin', 'elephant', 'flatfish', 'forest', 'fox', 'girl', 'hamster',
+'house', 'kangaroo', 'keyboard', 'lamp', 'lawn-mower', 'leopard', 'lion',
+'lizard', 'lobster', 'man', 'maple', 'motorcycle', 'mountain', 'mouse',
+'mushrooms', 'oak', 'oranges', 'orchids', 'otter', 'palm', 'pears',
+'pickup truck', 'pine', 'plain', 'plates', 'poppies', 'porcupine',
+'possum', 'rabbit', 'raccoon', 'ray', 'road', 'rocket', 'roses',
+'sea', 'seal', 'shark', 'shrew', 'skunk', 'skyscraper', 'snail', 'snake',
+'spider', 'squirrel', 'streetcar', 'sunflowers', 'sweet peppers', 'table',
+'tank', 'telephone', 'television', 'tiger', 'tractor', 'train', 'trout',
+'tulips', 'turtle', 'wardrobe', 'whale', 'willow', 'wolf', 'woman',
+'worm'
+]
+
+CIFAR100_LABELS = [
+'beaver', 'dolphin', 'otter', 'seal', 'whale',
+'aquarium fish', 'flatfish', 'ray', 'shark', 'trout',
+'orchids', 'poppies', 'roses', 'sunflowers', 'tulips',
+'bottles', 'bowls', 'cans', 'cups', 'plates',
+'apples', 'mushrooms', 'oranges', 'pears', 'sweet peppers',
+'clock', 'keyboard', 'lamp', 'telephone', 'television',
+'bed', 'chair', 'couch', 'table', 'wardrobe',
+'bee', 'beetle', 'butterfly', 'caterpillar', 'cockroach',
+'bear', 'leopard', 'lion', 'tiger', 'wolf',
+'bridge', 'castle', 'house', 'road', 'skyscraper',
+'cloud', 'forest', 'mountain', 'plain', 'sea',
+'camel', 'cattle', 'chimpanzee', 'elephant', 'kangaroo',
+'fox', 'porcupine', 'possum', 'raccoon', 'skunk',
+'crab', 'lobster', 'snail', 'spider', 'worm',
+'baby', 'boy', 'girl', 'man', 'woman',
+'crocodile', 'dinosaur', 'lizard', 'snake', 'turtle',
+'hamster', 'mouse', 'rabbit', 'shrew', 'squirrel',
+'maple', 'oak', 'palm', 'pine', 'willow',
+'bicycle', 'bus', 'motorcycle', 'pickup truck', 'train',
+'lawn-mower', 'rocket', 'streetcar', 'tank', 'tractor'
+]
+
+BIT_PER_MAJOR = 20
+BIT_PER_MINOR = 16
+BIT = BIT_PER_MAJOR + BIT_PER_MINOR * 5
+POS_VAL = 1.0
+
+
+def oriToMajorMinorList(ori_list):
+    new_list = [CIFAR100_LABELS.index(CIFAR100_LABELS_LIST[x]) for x in ori_list]
+    new_list_major = [x // 5 for x in new_list]
+    return new_list_major, new_list
+
+
+
+def oriToNewIdx(ori_label):
+    return CIFAR100_LABELS.index(CIFAR100_LABELS_LIST[ori_label])
+
+def newToOriIdx(new_label):
+    return CIFAR100_LABELS_LIST.index(CIFAR100_LABELS[new_label])
+
+
+def encodeConverter(idx):
+    encode_label = [0.0] * 100
+    encode_label[idx] = POS_VAL
+    return encode_label
+
+def decodeClassifier(raw_output):
+    target_code = []
+
+    for i in range(100):
+        target_code.append(encodeConverter(i))
+
+    target_code = torch.Tensor(target_code)
+    target_code = target_code.cuda()
+
+    res_cls = []
+    for i in range(raw_output.size()[0]):
+        pred = raw_output[i]
+        pred = pred.expand(100, -1)
+        #import pdb; pdb.set_trace()
+        pred = pred - target_code
+        dists = pred.norm(dim=1)
+        #dists = [torch.dist(raw_output[i], tgt) for tgt in target_code]
+        dist, idx = dists.min(dim=0)
+        res_cls.append( newToOriIdx(idx) )
+
+    res_cls = torch.LongTensor(res_cls)
+    res_cls = res_cls.cuda()
+
+    return res_cls
+
+
+'''
+def encodeConverter(idx):
+    idx_fine = idx % 5
+    idx = idx // 5
+    encode_label = [0.0] * (20*BIT)
+    for i in range(idx * BIT, idx * BIT + BIT_PER_MAJOR):
+        encode_label[i] = POS_VAL
+    for i in range(idx * BIT + BIT_PER_MAJOR + idx_fine * BIT_PER_MINOR,
+                   idx * BIT + BIT_PER_MAJOR + (idx_fine+1) * BIT_PER_MINOR):
+        encode_label[i] = POS_VAL
+    return encode_label
+
+def decodeClassifier(raw_output):
+    target_code = []
+
+    for i in range(100):
+        target_code.append(encodeConverter(i))
+
+    target_code = torch.Tensor(target_code)
+    target_code = target_code.cuda()
+
+    res_cls = []
+    for i in range(raw_output.size()[0]):
+        pred = raw_output[i]
+        pred = pred.expand(100, -1)
+        #import pdb; pdb.set_trace()
+        pred = pred - target_code
+        dists = pred.norm(dim=1)
+        #dists = [torch.dist(raw_output[i], tgt) for tgt in target_code]
+        dist, idx = dists.min(dim=0)
+        res_cls.append( newToOriIdx(idx) )
+
+    res_cls = torch.LongTensor(res_cls)
+    res_cls = res_cls.cuda()
+
+    return res_cls
+'''
+
+
+
+def get_network(args, num_cls=100, use_gpu=True):
     """ return given network
     """
 
-    if args.net == 'vgg16':
+    if args.net == 'orgg16':
+        from models.orgg import orgg16_bn
+        net = orgg16_bn()
+    elif args.net == 'orgg_fcn16':
+        from models.orgg import orgg16_fcn_bn
+        net = orgg16_fcn_bn()
+    elif args.net == 'vgg16':
         from models.vgg import vgg16_bn
-        net = vgg16_bn()
+        net = vgg16_bn(num_cls)
     elif args.net == 'vgg13':
         from models.vgg import vgg13_bn
         net = vgg13_bn()
@@ -125,13 +264,13 @@ def get_network(args, use_gpu=True):
         from models.senet import seresnet18
         net = seresnet18()
     elif args.net == 'seresnet34':
-        from models.senet import seresnet34 
+        from models.senet import seresnet34
         net = seresnet34()
     elif args.net == 'seresnet50':
-        from models.senet import seresnet50 
+        from models.senet import seresnet50
         net = seresnet50()
     elif args.net == 'seresnet101':
-        from models.senet import seresnet101 
+        from models.senet import seresnet101
         net = seresnet101()
     elif args.net == 'seresnet152':
         from models.senet import seresnet152
@@ -140,7 +279,7 @@ def get_network(args, use_gpu=True):
     else:
         print('the network name you have entered is not supported yet')
         sys.exit()
-    
+
     if use_gpu:
         net = net.cuda()
 
@@ -155,7 +294,7 @@ def get_training_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=Tru
         path: path to cifar100 training python dataset
         batch_size: dataloader batchsize
         num_workers: dataloader num_works
-        shuffle: whether to shuffle 
+        shuffle: whether to shuffle
     Returns: train_data_loader:torch dataloader object
     """
 
@@ -182,7 +321,7 @@ def get_test_dataloader(mean, std, batch_size=16, num_workers=2, shuffle=True):
         path: path to cifar100 test python dataset
         batch_size: dataloader batchsize
         num_workers: dataloader num_works
-        shuffle: whether to shuffle 
+        shuffle: whether to shuffle
     Returns: cifar100_test_loader:torch dataloader object
     """
 
@@ -202,7 +341,7 @@ def compute_mean_std(cifar100_dataset):
     Args:
         cifar100_training_dataset or cifar100_test_dataset
         witch derived from class torch.utils.data
-    
+
     Returns:
         a tuple contains mean, std value of entire dataset
     """
@@ -222,7 +361,7 @@ class WarmUpLR(_LRScheduler):
         total_iters: totoal_iters of warmup phase
     """
     def __init__(self, optimizer, total_iters, last_epoch=-1):
-        
+
         self.total_iters = total_iters
         super().__init__(optimizer, last_epoch)
 

@@ -59,6 +59,8 @@ if __name__ == '__main__':
         output = net(image)
         _, pred = output.topk(5, 1, largest=True, sorted=True)
 
+        import pdb; pdb.set_trace()
+
         label = label.view(label.size(0), -1).expand_as(pred)
         correct = pred.eq(label).float()
 

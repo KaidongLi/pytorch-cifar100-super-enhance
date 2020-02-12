@@ -36,9 +36,11 @@ class VGG(nn.Module):
 
     def forward(self, x):
         output = self.features(x)
+        #import pdb; pdb.set_trace()
         output = output.view(output.size()[0], -1)
         output = self.classifier(output)
-    
+        #import pdb; pdb.set_trace()
+
         return output
 
 def make_layers(cfg, batch_norm=False):
@@ -54,10 +56,10 @@ def make_layers(cfg, batch_norm=False):
 
         if batch_norm:
             layers += [nn.BatchNorm2d(l)]
-        
+
         layers += [nn.ReLU(inplace=True)]
         input_channel = l
-    
+
     return nn.Sequential(*layers)
 
 def vgg11_bn():
@@ -66,10 +68,8 @@ def vgg11_bn():
 def vgg13_bn():
     return VGG(make_layers(cfg['B'], batch_norm=True))
 
-def vgg16_bn():
-    return VGG(make_layers(cfg['D'], batch_norm=True))
+def vgg16_bn(num_cls=100):
+    return VGG(make_layers(cfg['D'], batch_norm=True), num_class=num_cls)
 
 def vgg19_bn():
     return VGG(make_layers(cfg['E'], batch_norm=True))
-
-
