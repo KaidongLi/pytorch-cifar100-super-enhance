@@ -161,6 +161,9 @@ def get_network(args, num_cls=100, use_gpu=True):
     elif args.net == 'vgg16':
         from models.vgg import vgg16_bn
         net = vgg16_bn(num_cls)
+    elif args.net == 'vgg_mm16':
+        from models.vgg_mm import vgg16_bn
+        net = vgg16_bn()
     elif args.net == 'vgg13':
         from models.vgg import vgg13_bn
         net = vgg13_bn()

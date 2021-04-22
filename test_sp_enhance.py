@@ -60,20 +60,19 @@ if __name__ == '__main__':
         start = time.time()
         image = Variable(image).cuda()
         label = Variable(label).cuda()
-        output = net(image)
-        _, pred = output.topk(5, 1, largest=True, sorted=True)
+
+        outputs_major, outputs_minor = net(image)
+
+        #import pdb; pdb.set_trace()
+
+        _, preds_major = outputs_major.max(1)
+
+        _, pred_add_mn = outputs_minor[0, preds_major[0]*5:(preds_major[0]*5+5)].max(0)
+        preds_minor = preds_major[0]*5 + pred_add_mn
         end = time.time()
-
-        label = label.view(label.size(0), -1).expand_as(pred)
-        correct = pred.eq(label).float()
-
         time_i.append(end-start)
 
-        #compute top 5
-        correct_5 += correct[:, :5].sum()
 
-        #compute top1 
-        correct_1 += correct[:, :1].sum()
 
     print('ave time: ', sum(time_i)/len(time_i))
 
